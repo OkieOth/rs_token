@@ -8,4 +8,7 @@ repository = "https://github.com/OkieOth/rs_token"
 
 
 [dependencies]
+anyhow = "1.0.86"
+time = "0.3.36"
 tokio = { version = "1.29.1", features = ["full"] }
+async-trait = "0.1.73"
