@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 
 #[derive(Debug)]
 pub struct Token {
@@ -18,8 +21,8 @@ impl TokenBuilder {
         self
     }
 
-    pub async fn build(&self) -> Token {
-        Token {
-        }
+    pub async fn build(&self) -> Arc<Mutex<Token>> {
+        Arc::new(Mutex::new(Token {
+        }))
     }
 }

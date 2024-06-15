@@ -8,5 +8,6 @@ edition = "2021"
 [dependencies]
 env_logger = "0.11.3"
 log = "0.4.20"
+rand = "0.8.5"
 rs_token = { path = "../../rs_token"}
 tokio = { version = "1.29.1", features = ["full"] }
