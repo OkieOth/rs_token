@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use time::PrimitiveDateTime;
-
+use anyhow::{Result, anyhow};
 
 #[derive(Debug, Default)]
 pub struct TokenContent {
@@ -28,7 +28,23 @@ impl<T> Token<T> {
     pub fn builder() -> TokenBuilder {
         TokenBuilder::default()
     }
+
+    async fn init_if_needed(&mut self) -> Result<()> {
+        Ok(()) // TODO
+    }
+
+    pub async fn get(&mut self) -> Result<String> {
+        self.init_if_needed().await?;
+        let guard = self.content.lock().await;
+        let content: &Option<TokenContent> = &guard;
+        if let Some(tc) = content {
+            Ok(tc.token.to_string())
+        } else {
+            Err(anyhow!("token not ready"))
+        }
+    }
 }
+
 
 #[derive(Default)]
 pub struct TokenBuilder {
@@ -59,7 +75,7 @@ impl TokenBuilder {
         self
     }
 
-    pub async fn build<T>(self, receiver: T) -> Result<Arc<Mutex<Token<T>>>, String> {
+    pub async fn build<T>(&self, receiver: T) -> Result<Arc<Mutex<Token<T>>>, String> {
         if self.url.is_none() {
             return Err("url isn't initialized".to_string());
         }
@@ -74,13 +90,13 @@ impl TokenBuilder {
         } else {
             30
         };
-        let url = self.url.unwrap();
-        let client = self.client.unwrap();
-        let password = self.password.unwrap();
+        let url = self.url.as_ref().unwrap();
+        let client = self.client.as_ref().unwrap();
+        let password = self.password.as_ref().unwrap();
         Ok(Arc::new(Mutex::new(Token {
-            url,
-            client,
-            password,
+            url: url.clone(),
+            client: client.clone(),
+            password: password.clone(),
             refresh_duration,
             content: Arc::new(Mutex::new(None)),
             token_receiver: receiver,

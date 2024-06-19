@@ -9,7 +9,10 @@ use rs_token::{Token, HttpTokenReceiver};
 
 
 async fn main() {
-    let token = Token::<HttpTokenReceiver>::builder()
+    let token = Token::<HttpTokenReceiver>::    builder()
+        .url("localhost")
+        .client("test-client")
+        .password("test-client999")
         .build(HttpTokenReceiver::default()).await.unwrap();
     println!("Hello, world: token ...");
 
@@ -20,13 +23,21 @@ async fn main() {
             let t = token.clone();
             let mut rng = rand::thread_rng();
             let sleep_duration = rng.gen_range(1..=5);
-
             async move {
-                let guard = t.lock().await;
-                let token_obj: &Token<HttpTokenReceiver> = &guard;
-                println!("[{}] Value in subtask ... not implemented", i);
-                println!("[{}] Sleeping for {} seconds ...", i, sleep_duration);
-                sleep(Duration::from_secs(sleep_duration)).await;
+                for iteration in 0..5 {    
+                    {
+                        let mut guard = t.lock().await;
+                        let token_obj: &mut Token<HttpTokenReceiver> = &mut guard;
+                        if let Ok(token_str) = token_obj.get().await {
+                            println!("[{}] iteration: {}: token: {}", i, iteration, token_str);
+        
+                        } else {
+                            println!("[{}] iteration: {}, error while requesting token", i, iteration);
+                        }
+                    }
+                    println!("[{}] iteration: {}, Sleeping for {} seconds ...", i, iteration, sleep_duration);
+                    sleep(Duration::from_secs(sleep_duration)).await;
+                }
                 println!("[{}] Done.", i);
             }
         });
