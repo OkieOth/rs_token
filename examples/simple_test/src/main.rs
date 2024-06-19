@@ -10,9 +10,10 @@ use rs_token::{Token, HttpTokenReceiver};
 
 async fn main() {
     let token = Token::<HttpTokenReceiver>::    builder()
-        .url("localhost")
+        .url("http://localhost:8080/")
         .client("test-client")
         .password("test-client999")
+        .realm("test-realm")
         .build(HttpTokenReceiver::default()).await.unwrap();
     println!("Hello, world: token ...");
 
