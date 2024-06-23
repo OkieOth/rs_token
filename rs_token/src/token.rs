@@ -1,16 +1,17 @@
 use std::sync::Arc;
 use tokio::sync::Mutex;
-use time::PrimitiveDateTime;
+use time::OffsetDateTime;
 use anyhow::{Result, anyhow};
+use base64;
 
 use crate::traits::TokenReceiver;
 
 #[derive(Debug, Default)]
 pub struct TokenContent {
     pub token: String,
-    pub exiration: Option<PrimitiveDateTime>,
-    pub last_updated: Option<PrimitiveDateTime>,
-    pub last_checked: Option<PrimitiveDateTime>,
+    pub exiration: Option<OffsetDateTime>,
+    pub last_updated: Option<OffsetDateTime>,
+    pub last_checked: Option<OffsetDateTime>,
 }
 
 
@@ -45,6 +46,44 @@ impl<T: TokenReceiver> Token<T> {
         } else {
             Err(anyhow!("token not ready"))
         }
+    }
+
+    pub fn validate(&mut self, token: &str) -> Result<bool> {
+        let parts = token.split('.').collect::<Vec<_>>();
+        if parts.len() != 3 {
+            return Err(anyhow!("bad token content"));
+        }
+        // let header = base64::(parts[0])?;
+        // let header: Header = serde_json::from_slice(&header)?;
+    
+        // // 2. Build the validation object
+        // let mut validation = Validation::new(header.alg);
+        // validation.set_issuer(Some(issuer.to_string()));
+    
+        // // 3. Retrieve the public key
+        // let jwks_url = format!("{}/certs", issuer);
+        // let client = reqwest::Client::new();
+        // let response = client.get(Url::parse(&jwks_url)?)
+        //     .send()?;
+        // if !response.status().is_success() {
+        //     return Err(jsonwebtoken::Error::HttpError(response.status()));
+        // }
+        // let jwks: serde_json::Value = response.json()?;
+    
+        // // 4. Extract the public key and verify the token
+        // let key = jwks["keys"]
+        //     .as_array()
+        //     .ok_or(jsonwebtoken::Error::InvalidKeySet)?
+        //     .iter()
+        //     .find(|k| k["kid"] == header.kid)
+        //     .ok_or(jsonwebtoken::Error::InvalidKeySet)?;
+        // let pem = format!("-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----\n", key["x5c"][0]);
+        // let public_key = jsonwebtoken::DecodingKey::from_pem(&pem)?;
+    
+        // decode::<serde_json::Value>(token, &public_key, &validation)
+        //     .map(|_| true)
+        //     .map_err(|err| err.into())
+        Ok(true)
     }
 }
 

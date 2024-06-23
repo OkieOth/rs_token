@@ -8,7 +8,10 @@
         "clientAuthenticatorType": "client-secret",
         "secret": "test-client999",
         "redirectUris": ["*"],
-        "serviceAccountsEnabled": true
+        "serviceAccountsEnabled": true,
+        "attributes": {
+          "access.token.lifespan": "23"
+        }
       }
     ]
   }

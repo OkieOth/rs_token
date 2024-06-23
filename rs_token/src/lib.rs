@@ -1,9 +1,12 @@
 mod token;
 mod traits;
-mod http;
+mod http_receiver;
+mod keycloak_pub_key;
 
 pub use token::{Token, TokenBuilder};
-pub use http::HttpTokenReceiver;
+pub use traits::{PublicKeyProvider, TokenReceiver};
+pub use http_receiver::HttpTokenReceiver;
+pub use keycloak_pub_key::KeycloakPubKeyProvider;
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right

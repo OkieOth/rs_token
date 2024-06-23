@@ -2,6 +2,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
+use time::{Duration, OffsetDateTime};
 
 
 use crate::traits::TokenReceiver;
@@ -48,17 +49,19 @@ impl TokenReceiver for HttpTokenReceiver {
         if response.status().is_success() {
             let token_response: TokenResponse = response.json().await?;
             let mut guard = token_content.lock().await;
+            let expired_in = token_response.expires_in;
+            let odt = OffsetDateTime::now_utc();
             let content: &mut Option<TokenContent> = &mut guard;
             *content = Some(TokenContent{
                 token: token_response.access_token,
-                exiration: None,
+                exiration: odt.checked_add(Duration::seconds(expired_in)),
                 last_checked: None,
                 last_updated: None,
-
             });
+
             // println!("Access Token: {}", token_response.access_token);
             // println!("Token Type: {}", token_response.token_type);
-            // println!("Expires In: {}", token_response.expires_in);
+            println!("Expires In: {}", token_response.expires_in);
             // println!("Refresh Token: {}", token_response.refresh_token);
             // println!("Scope: {}", token_response.scope);
             Ok(())

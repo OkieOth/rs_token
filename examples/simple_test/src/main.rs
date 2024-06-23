@@ -3,7 +3,7 @@ use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use rand::Rng;
 use rs_token::{Token, HttpTokenReceiver};
-
+use time::OffsetDateTime;
 #[tokio::main]
 
 
@@ -30,8 +30,9 @@ async fn main() {
                         let mut guard = t.lock().await;
                         let token_obj: &mut Token<HttpTokenReceiver> = &mut guard;
                         if let Ok(token_str) = token_obj.get().await {
-                            println!("[{}] iteration: {}: token: {}", i, iteration, token_str);
-        
+                            let odt = OffsetDateTime::now_utc();
+
+                            println!("[{}] iteration: {}: {}\ntoken: {}\n", i, iteration, odt.to_string(), token_str);
                         } else {
                             println!("[{}] iteration: {}, error while requesting token", i, iteration);
                         }
