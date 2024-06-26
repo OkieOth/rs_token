@@ -7,6 +7,9 @@ pub struct TokenValidator<P: PublicKeyProvider> {
 }
 
 impl TokenValidator {
+    pub fn new(provider: P) -> Self {
+
+    }
     pub async fn validate(&mut self, token: &str) -> Result(bool) {
 
     }

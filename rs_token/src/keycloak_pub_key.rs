@@ -44,7 +44,7 @@ impl KeycloakPubKeyProviderBuilder {
     pub fn build(&self) -> Result<KeycloakPubKeyProvider> {
         let server = self.server.clone().ok_or_else(|| Error::msg("Server is missing"))?;
         let port = if let Some(p) = self.port {
-            p.to_string()
+            format!(":{}", p)
         } else {
             "".to_string()
         };
@@ -85,4 +85,27 @@ impl PublicKeyProvider for KeycloakPubKeyProvider {
         }
     }
 
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{KeycloakPubKeyProvider, PublicKeyProvider};
+
+    #[test]
+    fn test_get_public_key() {
+        tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .unwrap()
+        .block_on(async {
+            let provider = KeycloakPubKeyProvider::builder()
+            .server("localhost")
+            .port(8080)
+            .realm("test-realm")
+            .build().unwrap();
+            let key = provider.get_key().await;
+            assert!(key.is_ok());
+        });
+
+    }    
 }
