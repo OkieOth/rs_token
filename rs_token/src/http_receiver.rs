@@ -32,7 +32,7 @@ struct TokenResponse {
 #[async_trait::async_trait]
 impl TokenReceiver for HttpTokenReceiver {
     /// Do the full authentication and returns a token
-    async fn get(&mut self, url: &str, client: &str, password: &str, token_content: &mut Arc<Mutex<Option<TokenContent>>>) -> Result<()> {
+    async fn get(&mut self, url: &str, client: &str, password: &str, token_content: Arc<Mutex<Option<TokenContent>>>) -> Result<()> {
         let http_client = reqwest::Client::new();
 
         let token_request = TokenRequest {
@@ -54,9 +54,9 @@ impl TokenReceiver for HttpTokenReceiver {
             let content: &mut Option<TokenContent> = &mut guard;
             *content = Some(TokenContent{
                 token: token_response.access_token,
-                exiration: odt.checked_add(Duration::seconds(expired_in)),
+                exiration_seconds: expired_in,
                 last_checked: None,
-                last_updated: None,
+                last_updated: Some(odt),
             });
 
             // println!("Access Token: {}", token_response.access_token);
@@ -71,11 +71,6 @@ impl TokenReceiver for HttpTokenReceiver {
             eprintln!("Error details: {}", error_text);
             Err(anyhow!(error_text))
         }
-    }
-
-    /// Refreshs a token before expiration
-    async fn refresh(&mut self, url: &str, client: &str, password: &str, refresh_token: &str, token_content: &mut Arc<Mutex<TokenContent>>) -> Result<()> {
-        Err(anyhow!("TODO"))
     }
 }
 

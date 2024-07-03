@@ -1,22 +1,23 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use time::OffsetDateTime;
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use base64;
+use std::sync::Arc;
+use std::time::Instant;
+use time::OffsetDateTime;
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration};
 
 use crate::traits::TokenReceiver;
 
 #[derive(Debug, Default)]
 pub struct TokenContent {
     pub token: String,
-    pub exiration: Option<OffsetDateTime>,
+    pub exiration_seconds: i64,
     pub last_updated: Option<OffsetDateTime>,
     pub last_checked: Option<OffsetDateTime>,
 }
 
-
 #[derive(Debug)]
-pub struct Token<T: TokenReceiver> {
+pub struct Token<T: TokenReceiver + Send> {
     url: String,
     client: String,
     password: String,
@@ -24,17 +25,82 @@ pub struct Token<T: TokenReceiver> {
 
     refresh_duration: usize,
     content: Arc<Mutex<Option<TokenContent>>>,
-    token_receiver: T,
+    token_receiver: Arc<Mutex<T>>,
 }
 
-impl<T: TokenReceiver> Token<T> {
+
+async fn get_expiration_seconds(
+    last_updated: &Option<OffsetDateTime>,
+    expiration_seconds: i64,
+) -> Result<u64> {
+    if let Some(lu) = last_updated {
+        let odt = OffsetDateTime::now_utc();
+        let sec_diff = odt.unix_timestamp() - lu.unix_timestamp();
+        let secure_offset: i64 = 5;
+        let remaining = expiration_seconds - secure_offset - sec_diff;
+        if remaining > 0 {
+            Ok(remaining as u64)
+        } else {
+            Ok(0)
+        }
+    } else {
+        Err(anyhow!("no valid last updated"))
+    }
+}
+
+async fn get_token_now<T: TokenReceiver + Send>(url_str: &str, client: &str, password: &str, content: Arc<Mutex<Option<TokenContent>>>,token_receiver: &Arc<Mutex<T>>) -> Result<()> {
+    // let mut guard_receiver = token_receiver.lock().await;
+    // let receiver: &mut T = &mut guard_receiver;
+    // receiver.get(url_str, client, password, content).await?;
+    Ok(())
+}
+
+
+impl<T: TokenReceiver + Send> Token<T> {
     pub fn builder() -> TokenBuilder {
         TokenBuilder::default()
     }
 
     async fn init_if_needed(&mut self) -> Result<()> {
-        let url_str = format!("{}/realms/{}/protocol/openid-connect/token", self.url, self.realm);
-        self.token_receiver.get(&url_str, &self.client, &self.password, &mut self.content).await
+        let url_str = format!(
+            "{}/realms/{}/protocol/openid-connect/token",
+            self.url, self.realm
+        );
+        let init_is_needed = {
+            let guard = self.content.lock().await;
+            let content: &Option<TokenContent> = &guard;
+            content.is_none()
+        };
+        if init_is_needed {
+            {
+                get_token_now(&url_str, &self.client, &self.password, self.content.clone(),&self.token_receiver).await?;
+            }
+            let content = self.content.clone();
+            let r = self.token_receiver.clone();
+            let client = self.client.clone();
+            let password = self.password.clone();
+            tokio::spawn(async move {
+                let recv = r;
+                loop {
+                    // {
+                    //     let guard = content.lock().await;
+                    //     let cont: &Option<TokenContent> = &guard;
+                    //     if let Some(c) = cont {
+                    //         if let Ok(remaining_expiration) = get_expiration_seconds(&c.last_updated, c.exiration_seconds).await {
+                    //             let d = Duration::from_secs(remaining_expiration);
+                    //             sleep(d).await;
+                    //         } else {
+                    //             // TODO sleep with maybe increasing time
+                    //         }
+                    //     } else {
+                    //         // TODO sleep with maybe increasing time
+                    //     }
+                    // }
+                    let _ = get_token_now(&url_str, &client, &password, content.clone(), &recv).await;
+                }
+            });
+        }
+        Ok(())
     }
 
     pub async fn get(&mut self) -> Result<String> {
@@ -55,11 +121,11 @@ impl<T: TokenReceiver> Token<T> {
         }
         // let header = base64::(parts[0])?;
         // let header: Header = serde_json::from_slice(&header)?;
-    
+
         // // 2. Build the validation object
         // let mut validation = Validation::new(header.alg);
         // validation.set_issuer(Some(issuer.to_string()));
-    
+
         // // 3. Retrieve the public key
         // let jwks_url = format!("{}/certs", issuer);
         // let client = reqwest::Client::new();
@@ -69,7 +135,7 @@ impl<T: TokenReceiver> Token<T> {
         //     return Err(jsonwebtoken::Error::HttpError(response.status()));
         // }
         // let jwks: serde_json::Value = response.json()?;
-    
+
         // // 4. Extract the public key and verify the token
         // let key = jwks["keys"]
         //     .as_array()
@@ -79,14 +145,13 @@ impl<T: TokenReceiver> Token<T> {
         //     .ok_or(jsonwebtoken::Error::InvalidKeySet)?;
         // let pem = format!("-----BEGIN PUBLIC KEY-----\n{}\n-----END PUBLIC KEY-----\n", key["x5c"][0]);
         // let public_key = jsonwebtoken::DecodingKey::from_pem(&pem)?;
-    
+
         // decode::<serde_json::Value>(token, &public_key, &validation)
         //     .map(|_| true)
         //     .map_err(|err| err.into())
         Ok(true)
     }
 }
-
 
 #[derive(Default)]
 pub struct TokenBuilder {
@@ -123,7 +188,10 @@ impl TokenBuilder {
         self
     }
 
-    pub async fn build<T: TokenReceiver>(&self, receiver: T) -> Result<Arc<Mutex<Token<T>>>, String> {
+    pub async fn build<T: TokenReceiver + Send>(
+        &self,
+        receiver: T,
+    ) -> Result<Arc<Mutex<Token<T>>>, String> {
         if self.url.is_none() {
             return Err("url isn't initialized".to_string());
         }
@@ -152,7 +220,7 @@ impl TokenBuilder {
             password: password.clone(),
             refresh_duration,
             content: Arc::new(Mutex::new(None)),
-            token_receiver: receiver,
+            token_receiver: Arc::new(Mutex::new(receiver)),
         })))
     }
 }
