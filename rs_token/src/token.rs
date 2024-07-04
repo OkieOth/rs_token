@@ -16,8 +16,7 @@ pub struct TokenContent {
     pub last_checked: Option<OffsetDateTime>,
 }
 
-#[derive(Debug)]
-pub struct Token<T: TokenReceiver + Send> {
+pub struct Token {
     url: String,
     client: String,
     password: String,
@@ -25,7 +24,7 @@ pub struct Token<T: TokenReceiver + Send> {
 
     refresh_duration: usize,
     content: Arc<Mutex<Option<TokenContent>>>,
-    token_receiver: Arc<Mutex<T>>,
+    token_receiver: Arc<Mutex<Box<dyn TokenReceiver + Send>>>,
 }
 
 
@@ -45,18 +44,38 @@ async fn get_expiration_seconds(
         }
     } else {
         Err(anyhow!("no valid last updated"))
-    }
+        }
 }
 
-async fn get_token_now<T: TokenReceiver + Send>(url_str: &str, client: &str, password: &str, content: Arc<Mutex<Option<TokenContent>>>,token_receiver: &Arc<Mutex<T>>) -> Result<()> {
-    // let mut guard_receiver = token_receiver.lock().await;
-    // let receiver: &mut T = &mut guard_receiver;
-    // receiver.get(url_str, client, password, content).await?;
+async fn get_token_now(url_str: &str, client: &str, password: &str, content: Arc<Mutex<Option<TokenContent>>>,token_receiver: Arc<Mutex<Box<dyn TokenReceiver + Send>>>) -> Result<()> {
+    let mut guard_receiver = token_receiver.lock().await;
+    let receiver: &mut dyn TokenReceiver = &mut **guard_receiver;
+    receiver.get(url_str, client, password, content).await?;
     Ok(())
 }
 
 
-impl<T: TokenReceiver + Send> Token<T> {
+async fn renew_token(url_str: String, client: String, password: String, content: Arc<Mutex<Option<TokenContent>>>, r: Arc<Mutex<Box<dyn TokenReceiver + Send>>>) {
+    loop {
+        // {
+        //     let guard = content.lock().await;
+        //     let cont: &Option<TokenContent> = &guard;
+        //     if let Some(c) = cont {
+        //         if let Ok(remaining_expiration) = get_expiration_seconds(&c.last_updated, c.exiration_seconds).await {
+        //             let d = Duration::from_secs(remaining_expiration);
+        //             sleep(d).await;
+        //         } else {
+        //             // TODO sleep with maybe increasing time
+        //         }
+        //     } else {
+        //         // TODO sleep with maybe increasing time
+        //     }
+        // }
+        let _ = get_token_now(&url_str, &client, &password, content.clone(), r.clone()).await;
+    }
+}
+
+impl Token {
     pub fn builder() -> TokenBuilder {
         TokenBuilder::default()
     }
@@ -73,32 +92,9 @@ impl<T: TokenReceiver + Send> Token<T> {
         };
         if init_is_needed {
             {
-                get_token_now(&url_str, &self.client, &self.password, self.content.clone(),&self.token_receiver).await?;
+                get_token_now(&url_str, &self.client, &self.password, self.content.clone(),self.token_receiver.clone()).await?;
             }
-            let content = self.content.clone();
-            let r = self.token_receiver.clone();
-            let client = self.client.clone();
-            let password = self.password.clone();
-            tokio::spawn(async move {
-                let recv = r;
-                loop {
-                    // {
-                    //     let guard = content.lock().await;
-                    //     let cont: &Option<TokenContent> = &guard;
-                    //     if let Some(c) = cont {
-                    //         if let Ok(remaining_expiration) = get_expiration_seconds(&c.last_updated, c.exiration_seconds).await {
-                    //             let d = Duration::from_secs(remaining_expiration);
-                    //             sleep(d).await;
-                    //         } else {
-                    //             // TODO sleep with maybe increasing time
-                    //         }
-                    //     } else {
-                    //         // TODO sleep with maybe increasing time
-                    //     }
-                    // }
-                    let _ = get_token_now(&url_str, &client, &password, content.clone(), &recv).await;
-                }
-            });
+            tokio::spawn(renew_token(url_str.clone(), self.client.clone(), self.client.clone(), self.content.clone(), self.token_receiver.clone()));
         }
         Ok(())
     }
@@ -188,10 +184,10 @@ impl TokenBuilder {
         self
     }
 
-    pub async fn build<T: TokenReceiver + Send>(
+    pub async fn build(
         &self,
-        receiver: T,
-    ) -> Result<Arc<Mutex<Token<T>>>, String> {
+        receiver: Box<dyn TokenReceiver + Send>,
+    ) -> Result<Arc<Mutex<Token>>, String> {
         if self.url.is_none() {
             return Err("url isn't initialized".to_string());
         }

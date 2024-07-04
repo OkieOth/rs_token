@@ -4,17 +4,16 @@ use tokio::time::{sleep, Duration};
 use rand::Rng;
 use rs_token::{Token, HttpTokenReceiver};
 use time::OffsetDateTime;
+
+
 #[tokio::main]
-
-
-
 async fn main() {
-    let token = Token::<HttpTokenReceiver>::    builder()
+    let token = Token::builder()
         .url("http://localhost:8080/")
         .client("test-client")
         .password("test-client999")
         .realm("test-realm")
-        .build(HttpTokenReceiver::default()).await.unwrap();
+        .build(Box::new(HttpTokenReceiver::default())).await.unwrap();
     println!("Hello, world: token ...");
 
     let mut handles: Vec<JoinHandle<()>> = vec![];
@@ -28,7 +27,7 @@ async fn main() {
                 for iteration in 0..5 {    
                     {
                         let mut guard = t.lock().await;
-                        let token_obj: &mut Token<HttpTokenReceiver> = &mut guard;
+                        let token_obj: &mut Token = &mut guard;
                         if let Ok(token_str) = token_obj.get().await {
                             let odt = OffsetDateTime::now_utc();
 
