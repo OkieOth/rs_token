@@ -16,6 +16,9 @@ pub struct TokenContent {
     pub last_checked: Option<OffsetDateTime>,
 }
 
+pub type TokenContentArc = Arc<Mutex<Option<TokenContent>>>;
+pub type TokenReceiverBox = Arc<Mutex<Box<dyn TokenReceiver + Send>>>;
+
 pub struct Token {
     url: String,
     client: String,
@@ -23,8 +26,8 @@ pub struct Token {
     realm: String,
 
     refresh_duration: usize,
-    content: Arc<Mutex<Option<TokenContent>>>,
-    token_receiver: Arc<Mutex<Box<dyn TokenReceiver + Send>>>,
+    content: TokenContentArc,
+    token_receiver: TokenReceiverBox,
 }
 
 
@@ -47,7 +50,7 @@ async fn get_expiration_seconds(
         }
 }
 
-async fn get_token_now(url_str: &str, client: &str, password: &str, content: Arc<Mutex<Option<TokenContent>>>,token_receiver: Arc<Mutex<Box<dyn TokenReceiver + Send>>>) -> Result<()> {
+async fn get_token_now(url_str: &str, client: &str, password: &str, content: TokenContentArc,token_receiver: TokenReceiverBox) -> Result<()> {
     let mut guard_receiver = token_receiver.lock().await;
     let receiver: &mut dyn TokenReceiver = &mut **guard_receiver;
     receiver.get(url_str, client, password, content).await?;
@@ -55,7 +58,7 @@ async fn get_token_now(url_str: &str, client: &str, password: &str, content: Arc
 }
 
 
-async fn renew_token(url_str: String, client: String, password: String, content: Arc<Mutex<Option<TokenContent>>>, r: Arc<Mutex<Box<dyn TokenReceiver + Send>>>) {
+async fn renew_token(url_str: String, client: String, password: String, content: TokenContentArc, r: TokenReceiverBox) {
     loop {
         // {
         //     let guard = content.lock().await;
