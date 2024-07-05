@@ -8,7 +8,7 @@ use crate::token::TokenContent;
 #[async_trait::async_trait]
 pub trait TokenReceiver {
     /// Do the full authentication and returns a token
-    async fn get(&mut self, url: &str, client: &str, password: &str, token_content: Arc<Mutex<Option<TokenContent>>>) -> Result<()>;
+    async fn get(&self, url: &str, client: &str, password: &str, token_content: Arc<Mutex<Option<TokenContent>>>) -> Result<()>;
 }
 
 #[async_trait::async_trait]

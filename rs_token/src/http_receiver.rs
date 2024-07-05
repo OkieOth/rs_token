@@ -32,7 +32,7 @@ struct TokenResponse {
 #[async_trait::async_trait]
 impl TokenReceiver for HttpTokenReceiver {
     /// Do the full authentication and returns a token
-    async fn get(&mut self, url: &str, client: &str, password: &str, token_content: Arc<Mutex<Option<TokenContent>>>) -> Result<()> {
+    async fn get(&self, url: &str, client: &str, password: &str, token_content: Arc<Mutex<Option<TokenContent>>>) -> Result<()> {
         let http_client = reqwest::Client::new();
 
         let token_request = TokenRequest {
