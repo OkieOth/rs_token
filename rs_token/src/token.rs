@@ -59,21 +59,31 @@ async fn get_token_now(url_str: &str, client: &str, password: &str, content: Tok
 
 
 async fn renew_token(url_str: String, client: String, password: String, content: TokenContentArc, r: TokenReceiverBox) {
+    fn get_error_duration(cur_sec_to_sleep: &mut u64) -> Duration {
+        let max_sec_to_sleep: u64 = 60;
+        let duration = Duration::from_secs(*cur_sec_to_sleep);
+        if *cur_sec_to_sleep < max_sec_to_sleep {
+            *cur_sec_to_sleep = *cur_sec_to_sleep * 2;
+        }
+        duration
+    }
+    let mut cur_sec_to_sleep = 1;
     loop {
-        // {
-        //     let guard = content.lock().await;
-        //     let cont: &Option<TokenContent> = &guard;
-        //     if let Some(c) = cont {
-        //         if let Ok(remaining_expiration) = get_expiration_seconds(&c.last_updated, c.exiration_seconds).await {
-        //             let d = Duration::from_secs(remaining_expiration);
-        //             sleep(d).await;
-        //         } else {
-        //             // TODO sleep with maybe increasing time
-        //         }
-        //     } else {
-        //         // TODO sleep with maybe increasing time
-        //     }
-        // }
+        let d: Duration = {
+            let guard = content.lock().await;
+            let cont: &Option<TokenContent> = &guard;
+            if let Some(c) = cont {
+                if let Ok(remaining_expiration) = get_expiration_seconds(&c.last_updated, c.exiration_seconds).await {
+                    cur_sec_to_sleep = 1;
+                    Duration::from_secs(remaining_expiration)
+                } else {
+                    get_error_duration(&mut cur_sec_to_sleep)
+                }
+            } else {
+                get_error_duration(&mut cur_sec_to_sleep)
+            }
+        };
+        sleep(d).await;
         let _ = get_token_now(&url_str, &client, &password, content.clone(), r.clone()).await;
     }
 }
