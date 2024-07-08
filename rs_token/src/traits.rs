@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use serde_json::Value;
 use anyhow::Result;
 
@@ -8,7 +8,7 @@ use crate::token::TokenContent;
 #[async_trait::async_trait]
 pub trait TokenReceiver {
     /// Do the full authentication and returns a token
-    async fn get(&self, url: &str, client: &str, password: &str, token_content: Arc<Mutex<Option<TokenContent>>>) -> Result<()>;
+    async fn get(&self, url: &str, client: &str, password: &str, token_content: Arc<RwLock<Option<TokenContent>>>) -> Result<()>;
 }
 
 #[async_trait::async_trait]

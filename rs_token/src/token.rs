@@ -3,7 +3,7 @@ use base64;
 use std::sync::Arc;
 use std::time::Instant;
 use time::OffsetDateTime;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::time::{sleep, Duration};
 
 use crate::traits::TokenReceiver;
@@ -16,8 +16,8 @@ pub struct TokenContent {
     pub last_checked: Option<OffsetDateTime>,
 }
 
-pub type TokenContentArc = Arc<Mutex<Option<TokenContent>>>;
-pub type TokenReceiverBox = Arc<Mutex<Box<dyn TokenReceiver + Send>>>;
+pub type TokenContentArc = Arc<RwLock<Option<TokenContent>>>;
+pub type TokenReceiverBox = Arc<RwLock<Box<dyn TokenReceiver + Send + Sync>>>;
 
 pub struct Token {
     url: String,
@@ -51,8 +51,8 @@ async fn get_expiration_seconds(
 }
 
 async fn get_token_now(url_str: &str, client: &str, password: &str, content: TokenContentArc,token_receiver: TokenReceiverBox) -> Result<()> {
-    let mut guard_receiver = token_receiver.lock().await;
-    let receiver: &mut dyn TokenReceiver = &mut **guard_receiver;
+    let guard_receiver = token_receiver.read().await;
+    let receiver: &dyn TokenReceiver = & **guard_receiver;
     receiver.get(url_str, client, password, content).await?;
     Ok(())
 }
@@ -70,7 +70,7 @@ async fn renew_token(url_str: String, client: String, password: String, content:
     let mut cur_sec_to_sleep = 1;
     loop {
         let d: Duration = {
-            let guard = content.lock().await;
+            let guard = content.read().await;
             let cont: &Option<TokenContent> = &guard;
             if let Some(c) = cont {
                 if let Ok(remaining_expiration) = get_expiration_seconds(&c.last_updated, c.exiration_seconds).await {
@@ -93,13 +93,13 @@ impl Token {
         TokenBuilder::default()
     }
 
-    async fn init_if_needed(&mut self) -> Result<()> {
+    async fn init_if_needed(&self) -> Result<()> {
         let url_str = format!(
             "{}/realms/{}/protocol/openid-connect/token",
             self.url, self.realm
         );
         let init_is_needed = {
-            let guard = self.content.lock().await;
+            let guard = self.content.read().await;
             let content: &Option<TokenContent> = &guard;
             content.is_none()
         };
@@ -107,14 +107,14 @@ impl Token {
             {
                 get_token_now(&url_str, &self.client, &self.password, self.content.clone(),self.token_receiver.clone()).await?;
             }
-            tokio::spawn(renew_token(url_str.clone(), self.client.clone(), self.client.clone(), self.content.clone(), self.token_receiver.clone()));
+            tokio::spawn(renew_token(url_str.clone(), self.client.clone(), self.client.clone(), self.content.clone(),  self.token_receiver.clone()));
         }
         Ok(())
     }
 
-    pub async fn get(&mut self) -> Result<String> {
+    pub async fn get(&self) -> Result<String> {
         self.init_if_needed().await?;
-        let guard = self.content.lock().await;
+        let guard = self.content.read().await;
         let content: &Option<TokenContent> = &guard;
         if let Some(tc) = content {
             Ok(tc.token.to_string())
@@ -199,8 +199,8 @@ impl TokenBuilder {
 
     pub async fn build(
         &self,
-        receiver: Box<dyn TokenReceiver + Send>,
-    ) -> Result<Arc<Mutex<Token>>, String> {
+        receiver: Box<dyn TokenReceiver + Send + Sync>,
+    ) -> Result<Arc<RwLock<Token>>, String> {
         if self.url.is_none() {
             return Err("url isn't initialized".to_string());
         }
@@ -222,14 +222,14 @@ impl TokenBuilder {
         let client = self.client.as_ref().unwrap();
         let password = self.password.as_ref().unwrap();
         let realm = self.realm.as_ref().unwrap();
-        Ok(Arc::new(Mutex::new(Token {
+        Ok(Arc::new(RwLock::new(Token {
             url: url.clone(),
             realm: realm.clone(),
             client: client.clone(),
             password: password.clone(),
             refresh_duration,
-            content: Arc::new(Mutex::new(None)),
-            token_receiver: Arc::new(Mutex::new(receiver)),
+            content: Arc::new(RwLock::new(None)),
+            token_receiver: Arc::new(RwLock::new(receiver)),
         })))
     }
 }

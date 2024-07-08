@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use reqwest::Error;
 use serde::{Deserialize, Serialize};
 use time::{Duration, OffsetDateTime};
@@ -32,7 +32,7 @@ struct TokenResponse {
 #[async_trait::async_trait]
 impl TokenReceiver for HttpTokenReceiver {
     /// Do the full authentication and returns a token
-    async fn get(&self, url: &str, client: &str, password: &str, token_content: Arc<Mutex<Option<TokenContent>>>) -> Result<()> {
+    async fn get(&self, url: &str, client: &str, password: &str, token_content: Arc<RwLock<Option<TokenContent>>>) -> Result<()> {
         let http_client = reqwest::Client::new();
 
         let token_request = TokenRequest {
@@ -48,7 +48,7 @@ impl TokenReceiver for HttpTokenReceiver {
 
         if response.status().is_success() {
             let token_response: TokenResponse = response.json().await?;
-            let mut guard = token_content.lock().await;
+            let mut guard = token_content.write().await;
             let expired_in = token_response.expires_in;
             let odt = OffsetDateTime::now_utc();
             let content: &mut Option<TokenContent> = &mut guard;

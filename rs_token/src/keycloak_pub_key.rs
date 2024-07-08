@@ -92,6 +92,7 @@ mod test {
     use crate::{KeycloakPubKeyProvider, PublicKeyProvider};
 
     #[test]
+    #[ignore = "needs docker compose"]
     fn test_get_public_key() {
         tokio::runtime::Builder::new_multi_thread()
         .enable_all()

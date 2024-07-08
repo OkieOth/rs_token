@@ -26,8 +26,8 @@ async fn main() {
             async move {
                 for iteration in 0..5 {    
                     {
-                        let mut guard = t.lock().await;
-                        let token_obj: &mut Token = &mut guard;
+                        let guard = t.read().await;
+                        let token_obj: &Token = & guard;
                         if let Ok(token_str) = token_obj.get().await {
                             let odt = OffsetDateTime::now_utc();
 
